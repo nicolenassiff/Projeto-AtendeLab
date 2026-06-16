@@ -1,5 +1,8 @@
 <?php
 require_once __DIR__ . '/app/Controllers/UsuariosController.php';
+require_once __DIR__ . '/app/Controllers/PessoasController.php';
+require_once __DIR__ . '/app/Controllers/TiposAtendimentosController.php';
+require_once __DIR__ . '/app/Controllers/AtendimentosController.php';
 
 $controller = $_GET['controller'] ?? 'home';
 $action = $_GET['action'] ?? 'index';
@@ -23,13 +26,17 @@ if ($controller === 'usuarios') {
         case 'atualizar':
             $usuariosController->atualizar();
             break;
+        
+        case 'inativar':
+            $usuariosController->inativar();
+            break;
 
         case 'excluir':
             $usuariosController->excluir();
             break;
 
         default:
-            echo 'Ação de usuários não encontrada.';
+            echo json_encode(['erro' => 'Ação de usuários não encontrada.']);
             break;
     }
 } elseif ($controller === 'pessoas') {
@@ -52,12 +59,16 @@ if ($controller === 'usuarios') {
             $pessoasController->atualizar();
             break;
 
+        case 'inativar':
+            $pessoasController->inativar();
+            break;
+
         case 'excluir':
             $pessoasController->excluir();
             break;
 
         default:
-            echo 'Ação de pessoas não encontrada.';
+            echo json_encode(['erro' =>'Ação de pessoas não encontrada.']);
             break;
         }
     } elseif ($controller === 'tipos_atendimentos') {
@@ -79,13 +90,17 @@ if ($controller === 'usuarios') {
         case 'atualizar':
             $tipos_atendimentosController->atualizar();
             break;
+        
+        case 'inativar':
+            $tipos_atendimentosController->inativar();
+            break;
 
         case 'excluir':
             $tipos_atendimentosController->excluir();
             break;
 
         default:
-            echo 'Ação de tipos de atendimento não encontrada.';
+            echo json_encode(['erro' =>'Ação de tipos de atendimento não encontrada.']);
             break;
         }
     } elseif ($controller === 'atendimentos') {
@@ -100,12 +115,12 @@ if ($controller === 'usuarios') {
             $atendimentosController->criar();
             break;
         
-        case 'atualizar':
-            $atendimentosController->atualizar();
+        case 'atualizarStatus':
+            $atendimentosController->atualizarStatus();
             break;
 
-        case 'status':
-            $atendimentosController->status();
+        case 'atualizar':
+            $atendimentosController->atualizar();
             break;
 
         case 'visualizar':
@@ -113,7 +128,7 @@ if ($controller === 'usuarios') {
             break;
 
         default:
-            echo 'Ação de atendimento não encontrada.';
+            echo json_encode(['erro' =>'Ação de atendimento não encontrada.']);
             break;
         }
     } else {
