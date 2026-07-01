@@ -5,171 +5,147 @@ require_once __DIR__ . '/app/Controllers/TiposAtendimentosController.php';
 require_once __DIR__ . '/app/Controllers/AtendimentosController.php';
 require_once __DIR__ . '/app/Controllers/AuthController.php';
 
-$controller = $_GET['controller'] ?? 'home';
-$action = $_GET['action'] ?? 'index';
+$controller = $_GET['controller'] ?? 'auth';
+$action = $_GET['action'] ?? 'login';
 
-switch ($controller) {
-    case 'auth':
-        $authController = new AuthController();
+if ($controller === 'auth') {
+    $auth = new AuthController();
 
-        switch ($action) {
-            case 'login':
-                $authController->exibirLogin();
-                break;
-            
-            case 'entrar':
-                $authController->entrar();
-                break;
+    switch($action) {
+        case 'login':
+            $auth->exibirLogin();
+            break;
+        case 'entrar':
+            $auth->entrar();
+            break;
+        case 'dashboard':
+            exigirAutenticacao();
+            $auth->dashboard();
+            break;
+        case 'logout':
+            $auth->logout();
+            break;
+        default:
+            http_response_code(404);
+            echo "Ação de autenticação não encontrada.";
+    }
+    exit;
+}
 
-            case 'dashboard':
-                $authController->dashboard();
-                break;
-            
-            case 'logout':
-                $authController->logout();
-                break;
+exigirAutenticacao();
 
-            default:
-                http_response_code(404);
-                echo '<h1>Ação de autenticação não encontrada.</h1>';
-        }
-        break;
-
+switch($controller) {
     case 'usuarios':
-        // exigirAutenticacao();
         $usuariosController = new UsuariosController();
-
         switch ($action) {
             case 'listar':
                 $usuariosController->listar();
                 break;
-            
-            case 'buscar':
-                $usuariosController->buscarPorId();
+            case 'buscarPorID':
+                $usuariosController->buscarPorID();
                 break;
-
             case 'criar':
                 $usuariosController->criar();
                 break;
-            
             case 'atualizar':
                 $usuariosController->atualizar();
                 break;
-            
             case 'inativar':
                 $usuariosController->inativar();
                 break;
-
             case 'excluir':
                 $usuariosController->excluir();
                 break;
-
             default:
                 http_response_code(404);
-                echo json_encode(['erro' => 'Ação de usuários não encontrada.']);
+                echo "Ação de usuários não encontrada.";
         }
         break;
 
-    case 'pessoas': 
+    case 'pessoas':
         $pessoasController = new PessoasController();
-
         switch ($action) {
             case 'listar':
                 $pessoasController->listar();
                 break;
-            
-            case 'buscar':
-                $pessoasController->buscarPorId();
+            case 'buscarPorID':
+                $pessoasController->buscarPorID();
                 break;
-
             case 'criar':
                 $pessoasController->criar();
                 break;
-            
             case 'atualizar':
                 $pessoasController->atualizar();
                 break;
-
             case 'inativar':
                 $pessoasController->inativar();
                 break;
-
             case 'excluir':
                 $pessoasController->excluir();
                 break;
-
             default:
                 http_response_code(404);
-                echo json_encode(['erro' =>'Ação de pessoas não encontrada.']);
-            }
+                echo "Ação de pessoas não encontrada.";
+        }
         break;
 
     case 'tipos_atendimentos':
-        $tipos_atendimentosController = new TiposAtendimentosController();
-
+        $tiposAtendimentosController = new TiposAtendimentosController();
         switch ($action) {
             case 'listar':
-                $tipos_atendimentosController->listar();
+                $tiposAtendimentosController->listar();
                 break;
-            
-            case 'buscar':
-                $tipos_atendimentosController->buscarPorId();
+            case 'buscarPorID':
+                $tiposAtendimentosController->buscarPorID();
                 break;
-
             case 'criar':
-                $tipos_atendimentosController->criar();
+                $tiposAtendimentosController->criar();
                 break;
-            
             case 'atualizar':
-                $tipos_atendimentosController->atualizar();
+                $tiposAtendimentosController->atualizar();
                 break;
-            
             case 'inativar':
-                $tipos_atendimentosController->inativar();
+                $tiposAtendimentosController->inativar();
                 break;
-
             case 'excluir':
-                $tipos_atendimentosController->excluir();
+                $tiposAtendimentosController->excluir();
                 break;
-
             default:
                 http_response_code(404);
-                echo json_encode(['erro' =>'Ação de tipos de atendimento não encontrada.']);
-            }
+                echo "Ação de tipos de atendimentos não encontrada.";
+        }
         break;
-        
+
     case 'atendimentos':
         $atendimentosController = new AtendimentosController();
-
         switch ($action) {
             case 'listar':
                 $atendimentosController->listar();
                 break;
-            
             case 'criar':
                 $atendimentosController->criar();
                 break;
-            
-            case 'atualizarStatus':
-                $atendimentosController->atualizarStatus();
-                break;
-
             case 'atualizar':
                 $atendimentosController->atualizar();
                 break;
-
+            case 'atualizarStatus':
+                $atendimentosController->atualizarStatus();
+                break;
             case 'visualizar':
                 $atendimentosController->visualizar();
                 break;
-
             default:
                 http_response_code(404);
-                echo json_encode(['erro' =>'Ação de atendimento não encontrada.']);
-            }
-        break;
-    
+                echo "Ação de atendimentos não encontrada.";
+        }
     default:
         http_response_code(404);
-        echo 'Controller nao encontrado.';
+        exit "Controlador não encontrado.";
 }
 
+if (!method_exists($obj, $action)) {
+    http_response_code(404);
+    exit "Ação não encontrada.";
+}
+
+$obj->$action();
