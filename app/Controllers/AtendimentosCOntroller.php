@@ -5,7 +5,7 @@ class AtendimentosController{
 
     public function __construct()
     {
-        require_once __DIR__ . '/../../config/database.php';
+        require __DIR__ . '/../../config/database.php';
         $this->pdo = $pdo;
     }
 
@@ -15,29 +15,56 @@ class AtendimentosController{
         echo json_encode($dados, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
-    public function listar(): void{
-        
-         $sql = 'SELECT
-                    a.id_atendimentos,
-                    p.nome_pessoas          AS pessoa,
-                    t.nome                  AS tipo_atendimento,
-                    u.nome                  AS usuario,
-                    a.data_atendimento,
-                    a.hora_atendimento,
-                    a.descricao,
-                    a.observacao_final,
-                    a.status,
-                    a.criado_em
-                FROM atendimentos a
-                INNER JOIN pessoas            p ON p.id_pessoas            = a.pessoa_id
-                INNER JOIN tipos_atendimentos t ON t.id_tiposatendimentos  = a.tipo_atendimento_id
-                INNER JOIN usuarios           u ON u.id                    = a.usuario_id
-                ORDER BY a.id_atendimentos DESC';
-        
-        $this->json($this->pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC));    
+    public function listar(): void
+    {
+        $perfil = $_SESSION['usuario']['perfil'] ?? 'aluno';
+        $usuarioLogadoId = $_SESSION['usuario']['id'] ?? null;
+
+        try {
+            if ($perfil === 'aluno') {
+                // Consulta para o Aluno logado
+                $sql = 'SELECT a.id_atendimentos, a.status, a.data_atendimento, a.hora_atendimento, a.descricao,
+                            p.nome_pessoas as pessoa, t.nome as tipo_atendimento, u.nome as usuario
+                        FROM atendimentos a
+                        JOIN pessoas p ON a.pessoa_id = p.id_pessoas
+                        JOIN tipos_atendimentos t ON a.tipo_atendimento_id = t.id_tiposatendimentos
+                        JOIN usuarios u ON a.usuario_id = u.id
+                        WHERE p.usuario_id = :usuario_logado_id
+                        ORDER BY a.data_atendimento DESC, a.hora_atendimento DESC';
+                
+                $stmt = $this->pdo->prepare($sql);
+                $stmt->bindValue(':usuario_logado_id', $usuarioLogadoId, PDO::PARAM_INT);
+            } else {
+                // Consulta para Administradores e Técnicos
+                $sql = 'SELECT a.id_atendimentos, a.status, a.data_atendimento, a.hora_atendimento, a.descricao,
+                            p.nome_pessoas as pessoa, t.nome as tipo_atendimento, u.nome as usuario
+                        FROM atendimentos a
+                        JOIN pessoas p ON a.pessoa_id = p.id_pessoas
+                        JOIN tipos_atendimentos t ON a.tipo_atendimento_id = t.id_tiposatendimentos
+                        JOIN usuarios u ON a.usuario_id = u.id
+                        ORDER BY a.data_atendimento DESC, a.hora_atendimento DESC';
+                
+                $stmt = $this->pdo->prepare($sql);
+            }
+
+            $stmt->execute();
+            $atendimentos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode($atendimentos, JSON_UNESCAPED_UNICODE);
+
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(['erro' => 'Erro ao listar atendimentos: ' . $e->getMessage()]);
+        }
     }
 
     public function criar(): void{
+
+        if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['perfil'] === 'aluno') {
+            http_response_code(403); 
+            echo json_encode(['erro' => 'Acesso negado. Alunos não possuem permissão para esta operação.']);
+            return;
+        }
         
         $pessoaId      = filter_var($_POST['pessoa_id'] ?? null, FILTER_VALIDATE_INT);
         $tipoId        = filter_var($_POST['tipo_atendimento_id'] ?? null, FILTER_VALIDATE_INT);
@@ -61,6 +88,12 @@ class AtendimentosController{
             $this->json(['erro' => 'Formato de hora inválido. Use HH:MM ou HH:MM:SS.'], 400);
             return;
         }
+
+        $hoje = date('Y-m-d');
+        if ($data < $hoje) {
+            $this->json(['erro' => 'Não é permitido agendar atendimentos para datas passadas.'], 422);
+            return;
+        }
  
         if (!in_array($status, ['aberto', 'em_andamento', 'concluido'], true)) {
             $this->json(['erro' => 'Status inválido. Use: aberto, em_andamento ou concluido.'], 422);
@@ -71,12 +104,12 @@ class AtendimentosController{
             'INSERT INTO atendimentos
                 (pessoa_id, tipo_atendimento_id, usuario_id,
                 data_atendimento, hora_atendimento,
-                descricao, observacao, status)
+                descricao, observacao_final, status)
             VALUES
                 (:pessoa_id, :tipo_id, :usuario_id,
                 :data, :hora,
-                :descricao, :observacao, :status)';
-        )
+                :descricao, :observacao_final, :status)'
+        );
 
         $stmt->execute([
             ':pessoa_id'  => $pessoaId,
@@ -85,6 +118,7 @@ class AtendimentosController{
             ':data'       => $data,
             ':hora'       => $hora,
             ':descricao'  => $descricao,
+            ':observacao_final' => null,
             ':status'     => $status,
         ]);
  
@@ -93,6 +127,12 @@ class AtendimentosController{
 
     public function atualizarStatus(): void
     {
+        if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['perfil'] === 'aluno') {
+            http_response_code(403); 
+            echo json_encode(['erro' => 'Acesso negado. Alunos não possuem permissão para esta operação.']);
+            return;
+        }
+
         $id = filter_var($_POST['id'] ?? '', FILTER_VALIDATE_INT);
         $status = $_POST['status'] ?? '';
         $observacao = trim($_POST['observacao_final'] ?? '');
@@ -121,18 +161,21 @@ class AtendimentosController{
         $this->json(['mensagem' => 'Status do atendimento atualizado com sucesso.']);
     }
 
-    public function atualizar(): void
-    {
-        $id         = filter_input(INPUT_POST, 'id',                   FILTER_VALIDATE_INT);
+    public function atualizar(): void{
+        
+        if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['perfil'] === 'aluno') {
+            http_response_code(403); 
+            echo json_encode(['erro' => 'Acesso negado. Alunos não possuem permissão para esta operação.']);
+            return;
+        }
+        $id         = filter_input(INPUT_POST, 'id',                 FILTER_VALIDATE_INT);
         $pessoaId   = filter_input(INPUT_POST, 'pessoa_id',            FILTER_VALIDATE_INT);
         $tipoId     = filter_input(INPUT_POST, 'tipo_atendimento_id',  FILTER_VALIDATE_INT);
         $usuarioId  = filter_input(INPUT_POST, 'usuario_id',           FILTER_VALIDATE_INT);
         $data       = trim($_POST['data_atendimento']  ?? '');
         $hora       = trim($_POST['hora_atendimento']  ?? '');
         $descricao  = trim($_POST['descricao']         ?? '');
-        $observacao = trim($_POST['observacao']        ?? '');
-        $status     = $_POST['status']                 ?? 'aberto';
- 
+
         if (!$id || !$pessoaId || !$tipoId || !$usuarioId || $data === '' || $hora === '') {
             http_response_code(400);
             echo json_encode([
@@ -140,25 +183,19 @@ class AtendimentosController{
             ]);
             return;
         }
- 
+
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $data)) {
             http_response_code(400);
             echo json_encode(['erro' => 'Formato de data inválido. Use YYYY-MM-DD.']);
             return;
         }
- 
+
         if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $hora)) {
             http_response_code(400);
             echo json_encode(['erro' => 'Formato de hora inválido. Use HH:MM ou HH:MM:SS.']);
             return;
         }
- 
-        if (!in_array($status, ['aberto', 'em_andamento', 'concluido'], true)) {
-            http_response_code(400);
-            echo json_encode(['erro' => 'Status inválido. Use: aberto, em_andamento ou concluido.']);
-            return;
-        }
- 
+
         try {
             $sql = 'UPDATE atendimentos
                     SET pessoa_id           = :pessoa_id,
@@ -166,31 +203,27 @@ class AtendimentosController{
                         usuario_id          = :usuario_id,
                         data_atendimento    = :data,
                         hora_atendimento    = :hora,
-                        descricao           = :descricao,
-                        observacao          = :observacao,
-                        status              = :status
+                        descricao           = :descricao
                     WHERE id_atendimentos = :id';
- 
+
             $stmt = $this->pdo->prepare($sql);
             $stmt->bindValue(':pessoa_id',  $pessoaId,  PDO::PARAM_INT);
             $stmt->bindValue(':tipo_id',    $tipoId,    PDO::PARAM_INT);
             $stmt->bindValue(':usuario_id', $usuarioId, PDO::PARAM_INT);
             $stmt->bindValue(':data',       $data);
             $stmt->bindValue(':hora',       $hora);
-            $stmt->bindValue(':descricao',  $descricao  ?: null);
-            $stmt->bindValue(':observacao', $observacao ?: null);
-            $stmt->bindValue(':status',     $status);
+            $stmt->bindValue(':descricao',  $descricao ?: null);
             $stmt->bindValue(':id',         $id, PDO::PARAM_INT);
             $stmt->execute();
- 
+
             echo json_encode(
                 ['mensagem' => 'Atendimento atualizado com sucesso.'],
                 JSON_UNESCAPED_UNICODE
             );
- 
+
         } catch (PDOException $e) {
             http_response_code(500);
-            echo json_encode(['erro' => 'Erro ao atualizar atendimento.']);
+            echo json_encode(['erro' => 'Erro ao atualizar atendimento: ' . $e->getMessage()]);
         }
     }
 
@@ -210,7 +243,7 @@ class AtendimentosController{
                     a.data_atendimento,
                     a.hora_atendimento,
                     a.descricao,
-                    a.observacao,
+                    a.observacao_final,
                     a.status,
                     a.criado_em,
  
@@ -265,7 +298,7 @@ class AtendimentosController{
                 'data'         => $row['data_atendimento'],
                 'hora'         => $row['hora_atendimento'],
                 'descricao'    => $row['descricao'],
-                'observacao'   => $row['observacao'],
+                'observacao'   => $row['observacao_final'],
                 'status'       => $row['status'],
                 'status_label' => $statusLabels[$row['status']] ?? $row['status'],
                 'criado_em'    => $row['criado_em'],

@@ -1,61 +1,86 @@
-<!doctype html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1">
-    
-    <title>Dashboard - AtendeLab</title>
+<?php
+$tituloPagina = 'Dashboard';
+require_once __DIR__ . '/../layouts/header.php';
 
-    <link 
-        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" 
-        rel="stylesheet">
-</head>
+$isAluno = (isset($_SESSION['usuario']['perfil']) && $_SESSION['usuario']['perfil'] === 'aluno');
+?>
 
-<body class="bd-light">
-    
-    <nav class="navbar navbar-dark bg-dark">
-        <div class="container">
-            <span class="navbar-brand">AtendeLab</span>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <h1 class="h3 mb-1">Dashboard</h1>
+    </div>
+</div>
 
-            <a class="btn btn-outline-light btn-sm"
-                href="?controller=auth&action=logout">
-                 Sair
-            </a>
+<div class="row g-3 mb-4">
+    <?php if (!$isAluno): ?>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-secondary small">Pessoas cadastradas</div>
+                    <div class="display-6 fw-semibold" id="totalPessoas">-</div>
+                </div>
+            </div>
         </div>
-    </nav>
 
-    <div class="container mt-4">
-        <div class="card shadow-sm">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-secondary small">Tipos de atendimento</div>
+                    <div class="display-6 fw-semibold" id="totalTipos">-</div>
+                </div>
+            </div>
+        </div>
+        
+    <?php endif; ?>
+
+    <div class="<?= $isAluno ? 'col-md-12' : 'col-md-4' ?>">
+        <div class="card border-0 shadow-sm h-100">
             <div class="card-body">
-
-                <?php if ($usuario['perfil'] === 'admin'): ?>
-                    <h1 class="h4">Painel Administrativo</h1>
-                    <div class="card-body">
-                        <h5 class="card-title">Olá, Administrador!</h5>
-                        <p class="card-text">
-                            Você tem acesso total ao gerenciamento de usuários e atendimentos.
-                        </p>
-                    </div>
-                </div>
-                <?php else: ?>
-                    <h1 class="h4">Painel do Usuário</h1>
-                    <div class="card-body">
-                        <h5 class="card-title">Olá!</h5>
-                        <p class="card-text">
-                            Você está autenticado e pode utilizar os recursos disponíveis para seu perfil.
-                        </p>
-                    </div>
-                </div>
-                <?php endif; ?>
-
-                <a class="btn btn-primary"
-                    href="?controller=usuarios&action=listar">
-                    Testar rota protegida de usuarios
-                </a>
+                <div class="text-secondary small">Atendimentos registrados</div>
+                <div class="display-6 fw-semibold" id="totalAtendimentos">-</div>
             </div>
         </div>
     </div>
+</div>
 
-</body>
-</html>
+<?php if (!$isAluno): ?>
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <h2 class="h5">Acesso rápido</h2>
+            <p class="text-secondary">Use os módulos abaixo para cadastrar e consultar dados reais do banco.</p>
+            
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-success" href="<?= $baseUrl ?>?controller=frontend&action=pessoas">Gerenciar pessoas</a>
+                <a class="btn btn-outline-success" href="<?= $baseUrl ?>?controller=frontend&action=tipos">Gerenciar tipos</a>
+                <a class="btn btn-outline-success" href="<?= $baseUrl ?>?controller=usuarios&action=listar">Gerenciar usuários</a>
+                <a class="btn btn-outline-success" href="<?= $baseUrl ?>?controller=frontend&action=atendimentos">Registrar atendimentos</a>
+            </div>
+        </div>
+    </div>
+<?php endif; ?>
+
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    const targets = {};
+    
+    const elPessoas = document.getElementById('totalPessoas');
+    const elTipos = document.getElementById('totalTipos');
+    const elAtendimentos = document.getElementById('totalAtendimentos');
+
+    if (elPessoas) targets.pessoas = elPessoas;
+    if (elTipos) targets.tipos = elTipos;
+    if (elAtendimentos) targets.atendimentos = elAtendimentos;
+
+    for (const [controller, element] of Object.entries(targets)) {
+        try {
+            const response = await AtendeLabApi.get(controller, 'listar');
+            element.textContent = AtendeLabApi.toList(response).length;
+        } catch (error) {
+            element.textContent = '!';
+            element.title = error.message;
+        }
+    }
+});
+</script>
+
+<?php require_once __DIR__ . '/../layouts/footer.php'; ?>

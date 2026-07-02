@@ -9,18 +9,24 @@ class UsuariosController{
         $this->pdo = $pdo;
     }
 
-    public function listar(): void
-    {
-        header('Content-Type: application/json; charset=utf-8');
-
-        $sql = 'SELECT id, nome, email, perfil, status, criado_em
-                FROM usuarios
-                ORDER BY id DESC';
-        
-        $stmt = $this->pdo->query($sql);
+    public function listar(): void{
+    $sql = 'SELECT id, nome
+            FROM usuarios
+            WHERE status = :status
+            ORDER BY nome ASC';
+    
+    try {
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute(['status' => 'ativo']);
         $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        echo json_encode($usuarios, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+        // Se o banco retornar vazio, garantimos um array vazio []
+        echo json_encode($usuarios ?: [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode([]);
     }
+}
     public function buscarPorID(): void{
         header('Content-Type: application/json; charset=utf-8');
         $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);

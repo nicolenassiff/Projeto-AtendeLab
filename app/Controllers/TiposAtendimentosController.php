@@ -5,7 +5,10 @@ class TiposAtendimentosController{
 
     public function __construct()
     {
-        require_once __DIR__ . '/../../config/database.php';
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        require __DIR__ . '/../../config/database.php';
         $this->pdo = $pdo;
     }
 
@@ -16,27 +19,37 @@ class TiposAtendimentosController{
         echo json_encode($dados, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
+    private function barrarAluno(): bool {
+        if (isset($_SESSION['usuario']['perfil']) && $_SESSION['usuario']['perfil'] === 'aluno') {
+            $this->json(['erro' => 'Acesso negado: Alunos não têm permissão para gerenciar tipos de atendimento.'], 403);
+            return true;
+        }
+        return false;
+    }
+
     public function listar(): void{
+        if ($this->barrarAluno()) return;
         
-        $sql = 'SELECT id_tiposatendimentos, nome, descricao, status, criado_em
+        $sql = 'SELECT id_tiposatendimentos AS id, nome, descricao, status, criado_em
                 FROM tipos_atendimentos
                 ORDER BY id_tiposatendimentos DESC';
         
         $this->json($this->pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC));
-    
     }
 
-     public function buscarPorId(): void
+    public function buscarPorId(): void
     {
+        if ($this->barrarAluno()) return;
+
         $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
         if (!$id) {
-            $ this->json(['erro' => 'ID inválido.'], 400);
+            $this->json(['erro' => 'ID inválido.'], 400);
             return;
         }
  
-        $stmt = $this->pdo->prepare('SELECT id_tiposatendimentos, nome, descricao, status, criado_em
+        $stmt = $this->pdo->prepare('SELECT id_tiposatendimentos AS id, nome, descricao, status, criado_em
                 FROM tipos_atendimentos
-                WHERE id_tiposatendimentos = :id';)
+                WHERE id_tiposatendimentos = :id');
  
         $stmt->execute(['id' => $id]);
         $tipo = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -49,7 +62,8 @@ class TiposAtendimentosController{
         $this->json($tipo);
     }
 
-      public function criar(): void{
+    public function criar(): void{
+        if ($this->barrarAluno()) return;
     
         $nome      = trim($_POST['nome']      ?? '');
         $descricao = trim($_POST['descricao'] ?? '');
@@ -75,6 +89,8 @@ class TiposAtendimentosController{
     }
 
     public function atualizar(): void{
+        if ($this->barrarAluno()) return;
+
         $id        = filter_var($_POST['id'] ?? '', FILTER_VALIDATE_INT);
         $nome      = trim($_POST['nome']      ?? '');
         $descricao = trim($_POST['descricao'] ?? '');
@@ -100,10 +116,10 @@ class TiposAtendimentosController{
 
         $stmt->execute(compact('nome', 'descricao', 'status', 'id'));
         $this->json(['mensagem' => 'Tipo de atendimento atualizado com sucesso.']);
- 
     }
 
-     public function inativar(): void{
+    public function inativar(): void{
+        if ($this->barrarAluno()) return;
 
         $id = filter_var($_POST['id'] ?? '', FILTER_VALIDATE_INT);
  
@@ -113,17 +129,35 @@ class TiposAtendimentosController{
         }
  
         $stmt = $this->pdo->prepare(
-            'UPDATE tipos_atendimentos SET status = 'inativo' WHERE id_tiposatendimentos = :id'
-            );
-        $stmt->execute(['id_tiposatendimentos' => $id]);
+            'UPDATE tipos_atendimentos SET status = :status WHERE id_tiposatendimentos = :id'
+        );
+        $stmt->execute(['id' => $id, 'status' => 'inativo']);
  
-            $this->json(['mensagem' => 'Tipo de atendimento inativado com sucesso.'], 200);
- 
+        $this->json(['mensagem' => 'Tipo de atendimento inativado com sucesso.'], 200);
     }
 
-     public function excluir(): void{
-        header('Content-Type: application/json; charset=utf-8');
+    public function reativar(): void{
+        if ($this->barrarAluno()) return;
+
+        $id = filter_var($_POST['id'] ?? '', FILTER_VALIDATE_INT);
  
+        if (!$id) {
+            $this->json(['erro' => 'ID inválido.'], 400);
+            return;
+        }
+ 
+        $stmt = $this->pdo->prepare(
+            'UPDATE tipos_atendimentos SET status = :status WHERE id_tiposatendimentos = :id'
+        );
+        $stmt->execute(['id' => $id, 'status' => 'ativo']);
+ 
+        $this->json(['mensagem' => 'Tipo de atendimento reativado com sucesso.'], 200);
+    }
+
+    public function excluir(): void{
+        if ($this->barrarAluno()) return;
+
+        header('Content-Type: application/json; charset=utf-8');
         $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
  
         if (!$id) {
